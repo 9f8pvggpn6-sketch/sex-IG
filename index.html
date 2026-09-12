@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>My IG</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; justify-content: center; overflow: hidden; }
+    
+    .app-container { 
+      width: 100vw; 
+      height: 100vh; 
+      overflow: hidden; 
+      position: relative;
+    }
+
+    .feed-wrapper {
+      width: 100%;
+      height: 100%;
+      transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    
+    .post { 
+      height: 100vh; 
+      width: 100vw;
+      display: flex; 
+      flex-direction: column; 
+      justify-content: space-between; 
+      position: relative; 
+      border-bottom: 1px solid #222; 
+    }
+    
+    .post-header { display: flex; align-items: center; padding: 15px; position: absolute; top: 0; width: 100%; z-index: 10; background: linear-gradient(180deg, rgba(0,0,0,0.6), transparent); }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; margin-right: 10px; border: 1.5px solid #e1306c; }
+    .username { font-weight: 600; font-size: 14px; }
+    
+    .post-image-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; user-select: none; }
+    .post-image { width: 100%; height: 100%; object-fit: cover; }
+    
+    .floating-heart {
+      position: absolute;
+      font-size: 80px;
+      color: #ff3040;
+      opacity: 0;
+      transform: scale(0);
+      pointer-events: none;
+      z-index: 20;
+    }
+    
+    @keyframes heartPop {
+      0% { opacity: 0; transform: scale(0.3); }
+      50% { opacity: 0.9; transform: scale(1.2); }
+      100% { opacity: 0; transform: scale(1.5); }
+    }
+
+    .floating-heart.pop {
+      animation: heartPop 0.8s ease-out forwards;
+    }
+
+    .post-footer { position: absolute; bottom: 0; left: 0; width: calc(100% - 60px); padding: 20px 15px; background: linear-gradient(0deg, rgba(0,0,0,0.8), transparent); z-index: 10; }
+    .caption { font-size: 14px; line-height: 1.4; }
+    .caption .user { font-weight: bold; margin-right: 5px; }
+
+    .side-bar {
+      position: absolute;
+      right: 12px;
+      bottom: 25px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      z-index: 15;
+    }
+    
+    .like-btn { 
+      background: none; 
+      border: none; 
+      cursor: pointer; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      color: #fff; 
+      outline: none; 
+    }
+    .heart-icon { font-size: 30px; transition: transform 0.2s ease; }
+    .like-btn:active .heart-icon { transform: scale(1.2); }
+    .like-btn.liked .heart-icon { color: #ff3040; }
+    .like-count { font-weight: bold; font-size: 12px; margin-top: 4px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="feed-wrapper" id="feed"></div>
+</div>
+
+<script>
+  const rawPosts = [
+    { username: "user_01", avatar: "https://picsum.photos/id/64/150/150", image: "https://i.ibb.co/7J56JH06/IMG-2986.jpg", caption: "第一張貼文", likes: 120, isLiked: false },
+    { username: "user_02", avatar: "https://picsum.photos/id/1025/150/150", image: "https://i.ibb.co/JR6zdHWS/IMG-2837.jpg", caption: "第二張貼文", likes: 230, isLiked: false },
+    { username: "user_03", avatar: "https://picsum.photos/id/1012/150/150", image: "https://i.ibb.co/4nYkXr5v/IMG-2982.jpg", caption: "第三張貼文", likes: 45, isLiked: false },
+    { username: "user_04", avatar: "https://picsum.photos/id/1005/150/150", image: "https://i.ibb.co/Tq0vDJ6P/IMG-2981.jpg", caption: "第四張貼文", likes: 89, isLiked: false },
+    { username: "user_05", avatar: "https://picsum.photos/id/1027/150/150", image: "https://i.ibb.co/356jDSP9/IMG-2983.jpg", caption: "第五張貼文", likes: 210, isLiked: false },
+    { username: "user_06", avatar: "https://picsum.photos/id/1074/150/150", image: "https://i.ibb.co/Q3cxZ318/IMG-2984.jpg", caption: "第六張貼文", likes: 34, isLiked: false },
+    { username: "user_07", avatar: "https://picsum.photos/id/65/150/150", image: "https://i.ibb.co/xSWzmQR4/IMG-2987.jpg", caption: "第七張貼文", likes: 567, isLiked: false },
+    { username: "user_08", avatar: "https://picsum.photos/id/68/150/150", image: "https://i.ibb.co/Jw8nD154/IMG-2985.jpg", caption: "第八張貼文", likes: 99, isLiked: false }
+  ];
+
+  const displayPosts = [
+    { ...rawPosts[rawPosts.length - 1], realIndex: rawPosts.length - 1 },
+    ...rawPosts.map((p, i) => ({ ...p, realIndex: i })),
+    { ...rawPosts[0], realIndex: 0 }
+  ];
+
+  const feed = document.getElementById("feed");
+  let currentIndex = 1;
+  let isScrolling = false;
+
+  displayPosts.forEach((post, i) => {
+    const postElement = document.createElement("div");
+    postElement.className = "post";
+    postElement.innerHTML = `
+      <div class="post-header">
+        <img src="${post.avatar}" class="avatar">
+        <span class="username">${post.username}</span>
+      </div>
+      <div class="post-image-container">
+        <img src="${post.image}" class="post-image">
+        <div class="floating-heart">♥</div>
+      </div>
+      <div class="side-bar">
+        <button class="like-btn ${post.isLiked ? 'liked' : ''}">
+          <span class="heart-icon">♥</span>
+          <span class="like-count">${post.likes}</span>
+        </button>
+      </div>
+      <div class="post-footer">
+        <div class="caption"><span class="user">${post.username}</span>${post.caption}</div>
+      </div>
+    `;
+    feed.appendChild(postElement);
+
+    const targetData = rawPosts[post.realIndex];
+    const likeBtn = postElement.querySelector('.like-btn');
+    const imageContainer = postElement.querySelector('.post-image-container');
+    const floatingHeart = postElement.querySelector('.floating-heart');
+
+    function toggleLike(forceLike = false) {
+      if (forceLike && targetData.isLiked) return;
+      targetData.isLiked = forceLike ? true : !targetData.isLiked;
+      targetData.likes += (targetData.isLiked ? 1 : -1) * (forceLike && !targetData.isLiked ? 1 : 1);
+      
+      document.querySelectorAll('.post').forEach((el, idx) => {
+        if (displayPosts[idx].realIndex === post.realIndex) {
+          const btn = el.querySelector('.like-btn');
+          const count = el.querySelector('.like-count');
+          if (targetData.isLiked) btn.classList.add('liked');
+          else btn.classList.remove('liked');
+          count.textContent = targetData.likes;
+        }
+      });
+    }
+
+    likeBtn.addEventListener("click", () => toggleLike());
+
+    let lastTap = 0;
+    imageContainer.addEventListener('touchend', (e) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTap;
+      if (tapLength < 300 && tapLength > 0) {
+        floatingHeart.classList.remove('pop');
+        void floatingHeart.offsetWidth;
+        floatingHeart.classList.add('pop');
+        toggleLike(true);
+        e.preventDefault();
+      }
+      lastTap = currentTime;
+    });
+  });
+
+  feed.style.transition = 'none';
+  feed.style.transform = `translateY(-${currentIndex * 100}vh)`;
+
+  function goToPost(nextIndex) {
+    if (isScrolling) return;
+    isScrolling = true;
+
+    currentIndex = nextIndex;
+    feed.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+    feed.style.transform = `translateY(-${currentIndex * 100}vh)`;
+
+    setTimeout(() => {
+      if (currentIndex === displayPosts.length - 1) {
+        feed.style.transition = 'none';
+        currentIndex = 1;
+        feed.style.transform = `translateY(-${currentIndex * 100}vh)`;
+      } 
+      else if (currentIndex === 0) {
+        feed.style.transition = 'none';
+        currentIndex = displayPosts.length - 2;
+        feed.style.transform = `translateY(-${currentIndex * 100}vh)`;
+      }
+      setTimeout(() => { isScrolling = false; }, 50);
+    }, 400);
+  }
+
+  let startY = 0;
+  window.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; });
+  window.addEventListener("touchend", (e) => {
+    const endY = e.changedTouches[0].clientY;
+    const diff = startY - endY;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) goToPost(currentIndex + 1);
+      else goToPost(currentIndex - 1);
+    }
+  });
+
+  window.addEventListener("wheel", (e) => {
+    if (e.deltaY > 0) goToPost(currentIndex + 1);
+    else goToPost(currentIndex - 1);
+  });
+</script>
+</body>
+</html>
